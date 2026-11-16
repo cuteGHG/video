@@ -14,7 +14,7 @@ function drawTexturedTriangle(ctx,source,src,dst){
 function drawFisheye(ctx,source,box,strength){
  const sw=source.videoWidth||source.width,sh=source.videoHeight||source.height;
  if(!sw||!sh||!box.w||!box.h)return;
- // Keep the mesh deliberately coarse: the old 16x9 grid issued 576 draw calls
+ // Keep the mesh deliberately coarse: the old 16x9 grid issued 288 draw calls
  // per canvas per frame and could freeze mobile browsers.
  const cols=8,rows=5,s=Math.max(0,Math.min(.85,Number(strength)||0));
  const bulgeDen=1-s*.55,cx=box.x+box.w/2,cy=box.y+box.h/2,src=[],dst=[];
