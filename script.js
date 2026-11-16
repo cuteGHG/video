@@ -18,8 +18,10 @@ function drawFisheye(ctx,source,box,strength){
  for(let y=0;y<rows;y++)for(let x=0;x<cols;x++){const s00=src[y][x],s10=src[y][x+1],s01=src[y+1][x],s11=src[y+1][x+1],d00=dst[y][x],d10=dst[y][x+1],d01=dst[y+1][x],d11=dst[y+1][x+1];drawTexturedTriangle(ctx,source,[s00,s10,s11],[d00,d10,d11]);drawTexturedTriangle(ctx,source,[s00,s11,s01],[d00,d11,d01]);}
 }
 const FILTERS={none:'none',cinema:'contrast(1.18) saturate(.82) sepia(.12)',vivid:'contrast(1.16) saturate(1.65)',mono:'grayscale(1)',noir:'grayscale(1) contrast(1.55)',dream:'brightness(1.12) saturate(1.35)',warm:'sepia(.28) saturate(1.25)',cool:'hue-rotate(18deg) saturate(1.18)',invert:'invert(1)'};
+function detectCanvasFilter(){try{const c=document.createElement('canvas');c.width=c.height=1;const x=c.getContext('2d',{willReadFrequently:true});x.fillStyle='#fff';x.fillRect(0,0,1,1);x.filter='invert(1)';x.fillRect(0,0,1,1);x.filter='none';return x.getImageData(0,0,1,1).data[0]<32;}catch(e){return false;}}
+const CANVAS_FILTER_SUPPORTED=detectCanvasFilter();
 function applyFallbackFilter(ctx,canvas,v,preset){
- const scale=Math.min(1,640/Math.max(v.videoWidth,v.videoHeight)),w=Math.max(1,Math.round(v.videoWidth*scale)),h=Math.max(1,Math.round(v.videoHeight*scale));
+ const scale=Math.min(1,480/Math.max(v.videoWidth,v.videoHeight)),w=Math.max(1,Math.round(v.videoWidth*scale)),h=Math.max(1,Math.round(v.videoHeight*scale));
  if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;canvas._vjTime=-1;}
  const cacheKey=v.currentTime+'|'+preset;if(canvas._vjKey===cacheKey)return canvas;
  ctx.clearRect(0,0,w,h);ctx.drawImage(v,0,0,w,h);
@@ -28,14 +30,14 @@ function applyFallbackFilter(ctx,canvas,v,preset){
 function drawClip(ctx,t,c,mix=1){
  const v=t.video;if(!t.visible||v.readyState<HTMLMediaElement.HAVE_CURRENT_DATA||!v.videoWidth)return;
  const box={x:t.x*c.width,y:t.y*c.height,w:t.w*c.width,h:t.h*c.height},filter=FILTERS[state.filterPreset]||'none';
- let source=v,filterSupported=('filter' in ctx);
+ let source=v,filterSupported=CANVAS_FILTER_SUPPORTED;
  if(state.chromaEnabled){
   const maxSide=960,scale=Math.min(1,maxSide/Math.max(v.videoWidth,v.videoHeight)),w=Math.max(1,Math.round(v.videoWidth*scale)),h=Math.max(1,Math.round(v.videoHeight*scale));
   const off=t.keyCanvas||(t.keyCanvas=document.createElement('canvas'));if(off.width!==w||off.height!==h){off.width=w;off.height=h;t.keyTime='';}
   const k=off.getContext('2d',{willReadFrequently:true});
   const keyCache=v.currentTime+'|'+state.filterPreset+'|'+state.chromaColor+'|'+state.chromaTolerance;if(t.keyTime!==keyCache){
    if(filterSupported){k.save();k.clearRect(0,0,w,h);k.filter=filter;k.drawImage(v,0,0,w,h);k.restore();}
-   else {k.clearRect(0,0,w,h);k.drawImage(v,0,0,w,h);if(filter!=='none')applyFallbackFilter(k,off,v,state.filterPreset);}
+   else {k.clearRect(0,0,w,h);if(filter!=='none'){const fc=t.filterCanvas||(t.filterCanvas=document.createElement('canvas'));const filtered=applyFallbackFilter(fc.getContext('2d',{willReadFrequently:true}),fc,v,state.filterPreset);k.drawImage(filtered,0,0,w,h);}else k.drawImage(v,0,0,w,h);}
    try{const im=k.getImageData(0,0,w,h),p=im.data,key=rgb(state.chromaColor),tol=state.chromaTolerance*2.2;for(let i=0;i<p.length;i+=4){const dr=p[i]-key.r,dg=p[i+1]-key.g,db=p[i+2]-key.b,dist=Math.sqrt(dr*dr+dg*dg+db*db);if(dist<tol)p[i+3]=0;else if(dist<tol+28)p[i+3]=Math.min(p[i+3],Math.round(255*(dist-tol)/28));}k.putImageData(im,0,0);source=off;t.keyTime=keyCache;}catch(e){source=v;}
   }else source=off;
  }else if(filter!=='none'&&!filterSupported){
