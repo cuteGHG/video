@@ -12,10 +12,27 @@ function drawTexturedTriangle(ctx,source,src,dst){
  ctx.save();ctx.beginPath();ctx.moveTo(dst[0].x,dst[0].y);ctx.lineTo(dst[1].x,dst[1].y);ctx.lineTo(dst[2].x,dst[2].y);ctx.closePath();ctx.clip();ctx.transform(a,b,c,d,e,f);ctx.drawImage(source,0,0);ctx.restore();
 }
 function drawFisheye(ctx,source,box,strength){
- const cols=16,rows=9,sw=source.videoWidth||source.width,sh=source.videoHeight||source.height,cx=box.x+box.w/2,cy=box.y+box.h/2;
- const src=[],dst=[];
- for(let y=0;y<=rows;y++){src[y]=[];dst[y]=[];for(let x=0;x<=cols;x++){const u=x/cols,v=y/rows,px=u*sw,py=v*sh,nx=(u-.5)*2,ny=(v-.5)*2,r=Math.min(1,Math.hypot(nx,ny)/Math.SQRT2),bulge=(1-strength*.55*r*r)/(1-strength*.55);src[y][x]={x:px,y:py};dst[y][x]={x:cx+(u-.5)*box.w*bulge,y:cy+(v-.5)*box.h*bulge};}}
- for(let y=0;y<rows;y++)for(let x=0;x<cols;x++){const s00=src[y][x],s10=src[y][x+1],s01=src[y+1][x],s11=src[y+1][x+1],d00=dst[y][x],d10=dst[y][x+1],d01=dst[y+1][x],d11=dst[y+1][x+1];drawTexturedTriangle(ctx,source,[s00,s10,s11],[d00,d10,d11]);drawTexturedTriangle(ctx,source,[s00,s11,s01],[d00,d11,d01]);}
+ const sw=source.videoWidth||source.width,sh=source.videoHeight||source.height;
+ if(!sw||!sh||!box.w||!box.h)return;
+ // Keep the mesh deliberately coarse: the old 16x9 grid issued 576 draw calls
+ // per canvas per frame and could freeze mobile browsers.
+ const cols=8,rows=5,s=Math.max(0,Math.min(.85,Number(strength)||0));
+ const bulgeDen=1-s*.55,cx=box.x+box.w/2,cy=box.y+box.h/2,src=[],dst=[];
+ for(let y=0;y<=rows;y++){
+  src[y]=[];dst[y]=[];
+  for(let x=0;x<=cols;x++){
+   const u=x/cols,v=y/rows,nx=(u-.5)*2,ny=(v-.5)*2,r=Math.min(1,Math.hypot(nx,ny)/Math.SQRT2);
+   const bulge=(1-s*.55*r*r)/bulgeDen;
+   src[y][x]={x:u*sw,y:v*sh};
+   dst[y][x]={x:cx+(u-.5)*box.w*bulge,y:cy+(v-.5)*box.h*bulge};
+  }
+ }
+ for(let y=0;y<rows;y++)for(let x=0;x<cols;x++){
+  const s00=src[y][x],s10=src[y][x+1],s01=src[y+1][x],s11=src[y+1][x+1];
+  const d00=dst[y][x],d10=dst[y][x+1],d01=dst[y+1][x],d11=dst[y+1][x+1];
+  drawTexturedTriangle(ctx,source,[s00,s10,s11],[d00,d10,d11]);
+  drawTexturedTriangle(ctx,source,[s00,s11,s01],[d00,d11,d01]);
+ }
 }
 const FILTERS={none:'none',cinema:'contrast(1.18) saturate(.82) sepia(.12)',vivid:'contrast(1.16) saturate(1.65)',mono:'grayscale(1)',noir:'grayscale(1) contrast(1.55)',dream:'brightness(1.12) saturate(1.35)',warm:'sepia(.28) saturate(1.25)',cool:'hue-rotate(18deg) saturate(1.18)',invert:'invert(1)'};
 function detectCanvasFilter(){try{const c=document.createElement('canvas');c.width=c.height=1;const x=c.getContext('2d',{willReadFrequently:true});x.fillStyle='#fff';x.fillRect(0,0,1,1);x.filter='invert(1)';x.fillRect(0,0,1,1);x.filter='none';return x.getImageData(0,0,1,1).data[0]<32;}catch(e){return false;}}
